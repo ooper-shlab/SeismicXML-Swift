@@ -85,7 +85,7 @@ class ParseOperation: NSOperation, NSXMLParserDelegate {
     
     init(data parseData: NSData) {
         
-        earthquakeData = parseData.copy() as NSData
+        earthquakeData = parseData.copy() as! NSData
         
         _dateFormatter = NSDateFormatter()
         _dateFormatter.timeZone = NSTimeZone(forSecondsFromGMT: 0)
@@ -164,8 +164,8 @@ class ParseOperation: NSOperation, NSXMLParserDelegate {
             self.currentEarthquakeObject = earthquake
         } else if elementName == kLinkElementName {
             if let relAttribute: AnyObject = attributeDict["rel"] {
-                if relAttribute as NSString == "alternate" {
-                    let USGSWebLink = attributeDict["href"]! as String
+                if relAttribute as! NSString == "alternate" {
+                    let USGSWebLink = attributeDict["href"]! as! String
                     self.currentEarthquakeObject.USGSWebLink = NSURL(string: USGSWebLink)
                 }
             }
@@ -208,7 +208,7 @@ class ParseOperation: NSOperation, NSXMLParserDelegate {
                         var location: NSString? = nil
                         // Scan the remainer of the string.
                         if scanner.scanUpToCharactersFromSet(NSCharacterSet.illegalCharacterSet(), intoString: &location) {
-                            self.currentEarthquakeObject.location = location!
+                            self.currentEarthquakeObject.location = location! as String
                         }
                     }
                 }
@@ -240,13 +240,13 @@ class ParseOperation: NSOperation, NSXMLParserDelegate {
     /**
     This method is called by the parser when it find parsed character data ("PCDATA") in an element. The parser is not guaranteed to deliver all of the parsed character data for an element in a single invocation, so it is necessary to accumulate character data until the end of the element is reached.
     */
-    func parser(parser: NSXMLParser, foundCharacters string: String) {
+    func parser(parser: NSXMLParser, foundCharacters string: String?) {
         
         if _accumulatingParsedCharacterData {
             // If the current element is one whose content we care about, append 'string'
             // to the property that holds the content of the current element.
             //
-            self.currentParsedCharacterData += string
+            self.currentParsedCharacterData += string!
         }
     }
     

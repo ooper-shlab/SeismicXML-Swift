@@ -70,7 +70,7 @@ class EarthquakeTableViewCell: UITableViewCell {
         
         self.locationLabel.text = earthquake.location
         self.dateLabel.text = self.dateFormatter.stringFromDate(earthquake.date)
-        self.magnitudeLabel.text = NSString(format: "%.1f", Double(earthquake.magnitude))
+        self.magnitudeLabel.text = String(format: "%.1f", Double(earthquake.magnitude))
         self.magnitudeImage.image = self.imageForMagnitude(earthquake.magnitude)
     }
     

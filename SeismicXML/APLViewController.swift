@@ -103,7 +103,7 @@ class ViewController: UITableViewController, UIActionSheetDelegate {
                     self.handleError(error!)
                 } else {
                     // check for any response errors
-                    let httpResponse = response as NSHTTPURLResponse
+                    let httpResponse = response as! NSHTTPURLResponse
                     if httpResponse.statusCode / 100 == 2 && response.MIMEType == "application/atom+xml" {
                         
                         // Update the UI and start parsing the data,
@@ -114,7 +114,7 @@ class ViewController: UITableViewController, UIActionSheetDelegate {
                         self.parseQueue.addOperation(parseOperation)
                     } else {
                         let errorString = NSLocalizedString("HTTP Error", comment: "Error message displayed when receving a connection error.")
-                        let userInfo: NSDictionary = [NSLocalizedDescriptionKey: errorString]
+                        let userInfo: [NSObject: AnyObject] = [NSLocalizedDescriptionKey: errorString]
                         let reportError = NSError(domain: "HTTP", code: httpResponse.statusCode, userInfo: userInfo)
                         self.handleError(reportError)
                     }
@@ -163,7 +163,7 @@ class ViewController: UITableViewController, UIActionSheetDelegate {
     func addEarthquakes(notif: NSNotification) {
         
         assert(NSThread.isMainThread())
-        self.addEarthquakesToList(notif.userInfo![kEarthquakeResultsKey]! as [Earthquake])
+        self.addEarthquakesToList(notif.userInfo![kEarthquakeResultsKey]! as! [Earthquake])
     }
     
     /**
@@ -172,7 +172,7 @@ class ViewController: UITableViewController, UIActionSheetDelegate {
     func earthquakesError(notif: NSNotification) {
         
         assert(NSThread.isMainThread())
-        self.handleError(notif.userInfo![kEarthquakesMessageErrorKey]! as NSError)
+        self.handleError(notif.userInfo![kEarthquakesMessageErrorKey]! as! NSError)
     }
     
     /**
@@ -182,12 +182,12 @@ class ViewController: UITableViewController, UIActionSheetDelegate {
         
         let startingRow = self.earthquakeList.count
         let earthquakeCount = earthquakes.count
-        let indexPaths = NSMutableArray(capacity: earthquakeCount)
+        var indexPaths: [NSIndexPath] = []
         
         for row in startingRow..<startingRow + earthquakeCount {
             
             let indexPath = NSIndexPath(forRow: row, inSection: 0)
-            indexPaths.addObject(indexPath)
+            indexPaths.append(indexPath)
         }
         
         self.earthquakeList += earthquakes
@@ -207,7 +207,7 @@ class ViewController: UITableViewController, UIActionSheetDelegate {
     override func tableView(tableView: UITableView, cellForRowAtIndexPath indexPath: NSIndexPath) -> UITableViewCell {
         
         let kEarthquakeCellID = "EarthquakeCellID"
-        let cell = tableView.dequeueReusableCellWithIdentifier(kEarthquakeCellID) as EarthquakeTableViewCell
+        let cell = tableView.dequeueReusableCellWithIdentifier(kEarthquakeCellID) as! EarthquakeTableViewCell
         
         // Get the specific earthquake for this row.
         let earthquake = self.earthquakeList[indexPath.row]
@@ -273,7 +273,7 @@ class ViewController: UITableViewController, UIActionSheetDelegate {
             let span = MKCoordinateSpan(latitudeDelta: 2.0, longitudeDelta: 2.0)
             let spanValue = NSValue(MKCoordinateSpan: span)
             
-            let launchOptions: NSDictionary = [MKLaunchOptionsMapTypeKey : MKMapType.Standard.rawValue,
+            let launchOptions: [NSObject : AnyObject] = [MKLaunchOptionsMapTypeKey : MKMapType.Standard.rawValue,
                 MKLaunchOptionsMapCenterKey : locationValue,
                 MKLaunchOptionsMapSpanKey : spanValue,
                 MKLaunchOptionsShowsTrafficKey : false,
