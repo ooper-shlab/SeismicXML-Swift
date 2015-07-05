@@ -104,13 +104,13 @@ class ViewController: UITableViewController, UIActionSheetDelegate {
                 } else {
                     // check for any response errors
                     let httpResponse = response as! NSHTTPURLResponse
-                    if httpResponse.statusCode / 100 == 2 && response.MIMEType == "application/atom+xml" {
+                    if httpResponse.statusCode / 100 == 2 && response!.MIMEType == "application/atom+xml" {
                         
                         // Update the UI and start parsing the data,
                         // Spawn an NSOperation to parse the earthquake data so that the UI is not
                         // blocked while the application parses the XML data.
                         //
-                        let parseOperation = ParseOperation(data: data)
+                        let parseOperation = ParseOperation(data: data!)
                         self.parseQueue.addOperation(parseOperation)
                     } else {
                         let errorString = NSLocalizedString("HTTP Error", comment: "Error message displayed when receving a connection error.")
@@ -224,8 +224,8 @@ class ViewController: UITableViewController, UIActionSheetDelegate {
         let buttonTitle = NSLocalizedString("Cancel", comment: "Cancel")
         let buttonTitle1 = NSLocalizedString("Show USGS Site in Safari", comment: "Show USGS Site in Safari")
         let buttonTitle2 = NSLocalizedString("Show Location in Maps", comment: "Show Location in Maps")
-        if NSClassFromString("UIAlertController") != nil {
-            let alert = UIAlertController(title: nil, message: nil, preferredStyle: .ActionSheet)
+        if #available(iOS 8.0, *) {
+                let alert = UIAlertController(title: nil, message: nil, preferredStyle: .ActionSheet)
             alert.addAction(UIAlertAction(title: buttonTitle1, style: .Default, handler: {action in
                 self.actionSheet(UIActionSheet(), willDismissWithButtonIndex: 0)
             }))
@@ -255,7 +255,7 @@ class ViewController: UITableViewController, UIActionSheetDelegate {
     */
     func actionSheet(actionSheet: UIActionSheet, willDismissWithButtonIndex buttonIndex: Int) {
         
-        let selectedIndexPath = self.tableView.indexPathForSelectedRow()!
+        let selectedIndexPath = self.tableView.indexPathForSelectedRow!
         let earthquake = self.earthquakeList[selectedIndexPath.row]
         
         switch buttonIndex {
@@ -273,7 +273,7 @@ class ViewController: UITableViewController, UIActionSheetDelegate {
             let span = MKCoordinateSpan(latitudeDelta: 2.0, longitudeDelta: 2.0)
             let spanValue = NSValue(MKCoordinateSpan: span)
             
-            let launchOptions: [NSObject : AnyObject] = [MKLaunchOptionsMapTypeKey : MKMapType.Standard.rawValue,
+            let launchOptions: [String : AnyObject] = [MKLaunchOptionsMapTypeKey : MKMapType.Standard.rawValue,
                 MKLaunchOptionsMapCenterKey : locationValue,
                 MKLaunchOptionsMapSpanKey : spanValue,
                 MKLaunchOptionsShowsTrafficKey : false,
