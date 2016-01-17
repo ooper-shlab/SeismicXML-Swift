@@ -1,65 +1,13 @@
 /*
-     File: APLParseOperation.m
- Abstract: The NSOperation class used to perform the XML parsing of earthquake data.
-  Version: 3.5
+ Copyright (C) 2015 Apple Inc. All Rights Reserved.
+ See LICENSE.txt for this sample’s licensing information
  
- Disclaimer: IMPORTANT:  This Apple software is supplied to you by Apple
- Inc. ("Apple") in consideration of your agreement to the following
- terms, and your use, installation, modification or redistribution of
- this Apple software constitutes acceptance of these terms.  If you do
- not agree with these terms, please do not use, install, modify or
- redistribute this Apple software.
- 
- In consideration of your agreement to abide by the following terms, and
- subject to these terms, Apple grants you a personal, non-exclusive
- license, under Apple's copyrights in this original Apple software (the
- "Apple Software"), to use, reproduce, modify and redistribute the Apple
- Software, with or without modifications, in source and/or binary forms;
- provided that if you redistribute the Apple Software in its entirety and
- without modifications, you must retain this notice and the following
- text and disclaimers in all such redistributions of the Apple Software.
- Neither the name, trademarks, service marks or logos of Apple Inc. may
- be used to endorse or promote products derived from the Apple Software
- without specific prior written permission from Apple.  Except as
- expressly stated in this notice, no other rights or licenses, express or
- implied, are granted by Apple herein, including but not limited to any
- patent rights that may be infringed by your derivative works or by other
- works in which the Apple Software may be incorporated.
- 
- The Apple Software is provided by Apple on an "AS IS" basis.  APPLE
- MAKES NO WARRANTIES, EXPRESS OR IMPLIED, INCLUDING WITHOUT LIMITATION
- THE IMPLIED WARRANTIES OF NON-INFRINGEMENT, MERCHANTABILITY AND FITNESS
- FOR A PARTICULAR PURPOSE, REGARDING THE APPLE SOFTWARE OR ITS USE AND
- OPERATION ALONE OR IN COMBINATION WITH YOUR PRODUCTS.
- 
- IN NO EVENT SHALL APPLE BE LIABLE FOR ANY SPECIAL, INDIRECT, INCIDENTAL
- OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
- SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
- INTERRUPTION) ARISING IN ANY WAY OUT OF THE USE, REPRODUCTION,
- MODIFICATION AND/OR DISTRIBUTION OF THE APPLE SOFTWARE, HOWEVER CAUSED
- AND WHETHER UNDER THEORY OF CONTRACT, TORT (INCLUDING NEGLIGENCE),
- STRICT LIABILITY OR OTHERWISE, EVEN IF APPLE HAS BEEN ADVISED OF THE
- POSSIBILITY OF SUCH DAMAGE.
- 
- Copyright (C) 2014 Apple Inc. All Rights Reserved.
- 
+ Abstract:
+ The NSOperation class used to perform the XML parsing of earthquake data.
  */
 
 #import "APLParseOperation.h"
 #import "APLEarthquake.h"
-
-// NSNotification name for sending earthquake data back to the app delegate
-NSString *kAddEarthquakesNotificationName = @"AddEarthquakesNotif";
-
-// NSNotification userInfo key for obtaining the earthquake data
-NSString *kEarthquakeResultsKey = @"EarthquakeResultsKey";
-
-// NSNotification name for reporting errors
-NSString *kEarthquakesErrorNotificationName = @"EarthquakeErrorNotif";
-
-// NSNotification userInfo key for obtaining the error message
-NSString *kEarthquakesMessageErrorKey = @"EarthquakesMsgErrorKey";
-
 
 @interface APLParseOperation () <NSXMLParserDelegate>
 
@@ -67,58 +15,99 @@ NSString *kEarthquakesMessageErrorKey = @"EarthquakesMsgErrorKey";
 @property (nonatomic) NSMutableArray *currentParseBatch;
 @property (nonatomic) NSMutableString *currentParsedCharacterData;
 
+@property (nonatomic, strong) NSDateFormatter *dateFormatter;
+
+@property (assign) BOOL accumulatingParsedCharacterData;
+@property (assign) BOOL didAbortParsing;
+
+@property (assign) NSUInteger parsedEarthquakesCounter;
+
+@property (assign) BOOL seekDescription;
+@property (assign) BOOL seekTime;
+@property (assign) BOOL seekLatitude;
+@property (assign) BOOL seekLongitude;
+@property (assign) BOOL seekMagnitude;
+
+// a stack queue containing  elements as they are being parsed, used to detect malformed XML.
+@property (nonatomic, strong) NSMutableArray *elementStack;
+
 @end
 
 
-@implementation APLParseOperation
-{
-    NSDateFormatter *_dateFormatter;
+#pragma mark -
 
-    BOOL _accumulatingParsedCharacterData;
-    BOOL _didAbortParsing;
-    NSUInteger _parsedEarthquakesCounter;
+@implementation APLParseOperation
+
++ (NSString *)AddEarthQuakesNotificationName
+{
+    return @"AddEarthquakesNotif";
 }
 
++ (NSString *)EarthquakeResultsKey
+{
+    return @"EarthquakeResultsKey";
+}
 
-- (id)initWithData:(NSData *)parseData {
++ (NSString *)EarthquakesErrorNotificationName
+{
+    return @"EarthquakeErrorNotif";
+}
+
++ (NSString *)EarthquakesMessageErrorKey
+{
+    return @"EarthquakesMsgErrorKey";
+}
+
+- (instancetype)init {
+    
+    NSAssert(NO, @"Invalid use of init; use initWithData to create APLParseOperation");
+    return [self init];
+}
+
+- (instancetype)initWithData:(NSData *)parseData {
     
     self = [super init];
-    if (self) {
+    if (self != nil && parseData != nil) {
         _earthquakeData = [parseData copy];
         
         _dateFormatter = [[NSDateFormatter alloc] init];
-        [_dateFormatter setTimeZone:[NSTimeZone timeZoneForSecondsFromGMT:0]];
-        [_dateFormatter setLocale:[[NSLocale alloc] initWithLocaleIdentifier:@"en_US_POSIX"]];
-        [_dateFormatter setDateFormat:@"yyyy'-'MM'-'dd'T'HH':'mm':'ss'Z'"];
+        self.dateFormatter.timeZone = [NSTimeZone timeZoneForSecondsFromGMT:0];
+        self.dateFormatter.locale = [[NSLocale alloc] initWithLocaleIdentifier:@"en_US_POSIX"];
+        self.dateFormatter.dateFormat = @"yyyy-MM-dd'T'HH:mm:ss.SSS'Z'";
+        
+        // 2015-09-24T16:01:00.283Z
 
         _currentParseBatch = [[NSMutableArray alloc] init];
         _currentParsedCharacterData = [[NSMutableString alloc] init];
+        
+        _elementStack = [[NSMutableArray alloc] init];
+        
     }
     return self;
 }
 
-
 - (void)addEarthquakesToList:(NSArray *)earthquakes {
     
     assert([NSThread isMainThread]);
-    [[NSNotificationCenter defaultCenter] postNotificationName:kAddEarthquakesNotificationName object:self userInfo:@{kEarthquakeResultsKey: earthquakes}]; 
+    [[NSNotificationCenter defaultCenter] postNotificationName:APLParseOperation.AddEarthQuakesNotificationName
+                                                        object:self
+                                                      userInfo:@{APLParseOperation.EarthquakeResultsKey: earthquakes}];
 }
-
 
 // The main function for this NSOperation, to start the parsing.
 - (void)main {
-    
+
     /*
      It's also possible to have NSXMLParser download the data, by passing it a URL, but this is not desirable because it gives less control over the network, particularly in responding to connection errors.
      */
     NSXMLParser *parser = [[NSXMLParser alloc] initWithData:self.earthquakeData];
-    [parser setDelegate:self];
+    parser.delegate = self;
     [parser parse];
-    
+
     /*
      Depending on the total number of earthquakes parsed, the last batch might not have been a "full" batch, and thus not been part of the regular batch transfer. So, we check the count of the array and, if necessary, send it to the main thread.
      */
-    if ([self.currentParseBatch count] > 0) {
+    if (self.currentParseBatch.count > 0) {
         [self performSelectorOnMainThread:@selector(addEarthquakesToList:) withObject:self.currentParseBatch waitUntilDone:NO];
     }
 }
@@ -137,104 +126,133 @@ static const NSUInteger kMaximumNumberOfEarthquakesToParse = 50;
 static NSUInteger const kSizeOfEarthquakeBatch = 10;
 
 // Reduce potential parsing errors by using string constants declared in a single place.
-static NSString * const kEntryElementName = @"entry";
-static NSString * const kLinkElementName = @"link";
-static NSString * const kTitleElementName = @"title";
-static NSString * const kUpdatedElementName = @"updated";
-static NSString * const kGeoRSSPointElementName = @"georss:point";
+static NSString * const kValueKey = @"value";
+
+static NSString * const kEntryElementName = @"event";
+
+static NSString * const kDescriptionElementDesc = @"description";
+static NSString * const kDescriptionElementContent = @"text";
+
+static NSString * const kTimeElementName = @"time";
+
+static NSString * const kLatitudeElementName = @"latitude";
+static NSString * const kLongitudeElementName = @"longitude";
+
+static NSString * const kMagitudeValueName = @"mag";
 
 
-#pragma mark - NSXMLParser delegate methods
+#pragma mark - NSXMLParserDelegate
 
 - (void)parser:(NSXMLParser *)parser didStartElement:(NSString *)elementName namespaceURI:(NSString *)namespaceURI qualifiedName:(NSString *)qName attributes:(NSDictionary *)attributeDict {
+    
+    // add the element to the state stack
+    [self.elementStack addObject:elementName];
     
     /*
      If the number of parsed earthquakes is greater than kMaximumNumberOfEarthquakesToParse, abort the parse.
      */
-    if (_parsedEarthquakesCounter >= kMaximumNumberOfEarthquakesToParse) {
-        /*
-         Use the flag didAbortParsing to distinguish between this deliberate stop and other parser errors.
-         */
+    if (self.parsedEarthquakesCounter >= kMaximumNumberOfEarthquakesToParse) {
+        // Use the flag didAbortParsing to distinguish between this deliberate stop and other parser errors
         _didAbortParsing = YES;
         [parser abortParsing];
     }
+    
     if ([elementName isEqualToString:kEntryElementName]) {
         APLEarthquake *earthquake = [[APLEarthquake alloc] init];
         self.currentEarthquakeObject = earthquake;
     }
-    else if ([elementName isEqualToString:kLinkElementName]) {
-        NSString *relAttribute = [attributeDict valueForKey:@"rel"];
-        if ([relAttribute isEqualToString:@"alternate"]) {
-            NSString *USGSWebLink = [attributeDict valueForKey:@"href"];
-            self.currentEarthquakeObject.USGSWebLink = [NSURL URLWithString:USGSWebLink];
-        }
-    }
-    else if ([elementName isEqualToString:kTitleElementName] || [elementName isEqualToString:kUpdatedElementName] || [elementName isEqualToString:kGeoRSSPointElementName]) {
-        // For the 'title', 'updated', or 'georss:point' element begin accumulating parsed character data.
-        // The contents are collected in parser:foundCharacters:.
+    else if ((self.seekDescription && [elementName isEqualToString:kDescriptionElementContent]) ||  // <description>..<text>
+             (self.seekTime && [elementName isEqualToString:kValueKey]) ||                          // <time>..<value>
+             (self.seekLatitude && [elementName isEqualToString:kValueKey]) ||              // <latitude>..<value>
+             (self.seekLongitude && [elementName isEqualToString:kValueKey]) ||             // <longitude>..<value>
+             (self.seekMagnitude && [elementName isEqualToString:kValueKey]))               // <mag>..<value>
+    {
+        // For elements: <text> and <value>, the contents are collected in parser:foundCharacters:
         _accumulatingParsedCharacterData = YES;
         // The mutable string needs to be reset to empty.
-        [self.currentParsedCharacterData setString:@""];
+        self.currentParsedCharacterData = [NSMutableString stringWithString:@""];
     }
+    else if ([elementName isEqualToString:kDescriptionElementDesc])
+        _seekDescription = YES;
+    else if ([elementName isEqualToString:kTimeElementName])
+        _seekTime = YES;
+    else if ([elementName isEqualToString:kLatitudeElementName])
+         _seekLatitude = YES;
+    else if ([elementName isEqualToString:kLongitudeElementName])
+        _seekLongitude = YES;
+    else if ([elementName isEqualToString:kMagitudeValueName])
+        _seekMagnitude = YES;
 }
 
 - (void)parser:(NSXMLParser *)parser didEndElement:(NSString *)elementName namespaceURI:(NSString *)namespaceURI qualifiedName:(NSString *)qName {
     
-    if ([elementName isEqualToString:kEntryElementName]) {
+    // check if the end element matches what's last on the element stack
+    if ([elementName isEqualToString:self.elementStack.lastObject]) {
+        // they match, remove it
+        [self.elementStack removeLastObject];
+    }
+    else {
+        // they don't match, we have malformed XML
+        NSLog(@"could not find end element of \"%@\"", elementName);
+        [self.elementStack removeAllObjects];
+        [parser abortParsing];
+    }
     
+    if ([elementName isEqualToString:kEntryElementName]) {
+        
+        // end earthquake entry, add it to the array
         [self.currentParseBatch addObject:self.currentEarthquakeObject];
         _parsedEarthquakesCounter++;
-        if ([self.currentParseBatch count] >= kSizeOfEarthquakeBatch) {
-            [self performSelectorOnMainThread:@selector(addEarthquakesToList:) withObject:self.currentParseBatch waitUntilDone:NO];
-            self.currentParseBatch = [NSMutableArray array];
+
+        if (self.currentParseBatch.count >= kSizeOfEarthquakeBatch) {
+            [self performSelectorOnMainThread:@selector(addEarthquakesToList:) withObject:self.currentParseBatch waitUntilDone:YES];
+            
+            [self.currentParseBatch removeAllObjects];
         }
     }
-    else if ([elementName isEqualToString:kTitleElementName]) {
-        /*
-         The title element contains the magnitude and location in the following format:
-         <title>M 3.6, Virgin Islands region<title/>
-         Extract the magnitude and the location using a scanner:
-        */
-        NSScanner *scanner = [NSScanner scannerWithString:self.currentParsedCharacterData];
-        // Scan past the "M " before the magnitude.
-        if ([scanner scanString:@"M " intoString:NULL]) {
-            CGFloat magnitude;
-            if ([scanner scanFloat:&magnitude]) {
-                self.currentEarthquakeObject.magnitude = magnitude;
-                // Scan past the ", " before the title.
-                if ([scanner scanString:@", " intoString:NULL]) {
-                    NSString *location = nil;
-                    // Scan the remainer of the string.
-                    if ([scanner scanUpToCharactersFromSet:
-                         [NSCharacterSet illegalCharacterSet] intoString:&location]) {
-                        self.currentEarthquakeObject.location = location;
-                    }
-                }
-            }
+    else if ([elementName isEqualToString:kDescriptionElementContent]) {
+        // end description, set the location of the earthquake
+        if (self.seekDescription) {
+            /*
+             The description element contains the following format:
+                "14km WNW of Anza, California"
+             Extract just the location name
+             */
+            
+            // search the entire string for "of ", and extract that last part of that string
+            NSRange searchedRange = NSMakeRange(0, self.currentParsedCharacterData.length);
+            NSRegularExpression *regExpression = [[NSRegularExpression alloc] initWithPattern:@"of " options:0 error:nil];
+            NSTextCheckingResult *match = [regExpression firstMatchInString:self.currentParsedCharacterData options:0 range:searchedRange];
+            NSInteger start = match.range.location + match.range.length;
+            NSRange extractRange = NSMakeRange(start, self.currentParsedCharacterData.length - start);
+            self.currentEarthquakeObject.location = [self.currentParsedCharacterData substringWithRange:extractRange];
+            
+            _seekDescription = NO;
         }
     }
-    else if ([elementName isEqualToString:kUpdatedElementName]) {
-        if (self.currentEarthquakeObject != nil) {
-            self.currentEarthquakeObject.date = [_dateFormatter dateFromString:self.currentParsedCharacterData];
+    else if ([elementName isEqualToString:kValueKey]) {
+        if (self.seekTime) {
+            // end earthquake date/time
+            self.currentEarthquakeObject.date = [self.dateFormatter dateFromString:self.currentParsedCharacterData];
+            _seekTime = NO;
         }
-        else {
-            // kUpdatedElementName can be found outside an entry element (i.e. in the XML header)
-            // so don't process it here.
+        else if (self.seekLatitude) {
+            // end earthquake latitude
+            self.currentEarthquakeObject.latitude = self.currentParsedCharacterData.doubleValue;
+            _seekLatitude = NO;
+        }
+        else if (self.seekLongitude) {
+            // end earthquake longitude
+            self.currentEarthquakeObject.longitude = self.currentParsedCharacterData.doubleValue;
+            _seekLongitude = NO;
+        }
+        else if (self.seekMagnitude) {
+            // end earthquake magnitude
+            self.currentEarthquakeObject.magnitude = self.currentParsedCharacterData.floatValue;
+            _seekMagnitude = NO;
         }
     }
-    else if ([elementName isEqualToString:kGeoRSSPointElementName]) {
-        // The georss:point element contains the latitude and longitude of the earthquake epicenter.
-        // 18.6477 -66.7452
-        //
-        NSScanner *scanner = [NSScanner scannerWithString:self.currentParsedCharacterData];
-        double latitude, longitude;
-        if ([scanner scanDouble:&latitude]) {
-            if ([scanner scanDouble:&longitude]) {
-                self.currentEarthquakeObject.latitude = latitude;
-                self.currentEarthquakeObject.longitude = longitude;
-            }
-        }
-    }
+    
     // Stop accumulating parsed character data. We won't start again until specific elements begin.
     _accumulatingParsedCharacterData = NO;
 }
@@ -244,7 +262,7 @@ static NSString * const kGeoRSSPointElementName = @"georss:point";
  */
 - (void)parser:(NSXMLParser *)parser foundCharacters:(NSString *)string {
 
-    if (_accumulatingParsedCharacterData) {
+    if (self.accumulatingParsedCharacterData) {
         // If the current element is one whose content we care about, append 'string'
         // to the property that holds the content of the current element.
         //
@@ -258,7 +276,9 @@ static NSString * const kGeoRSSPointElementName = @"georss:point";
 - (void)handleEarthquakesError:(NSError *)parseError {
 
     assert([NSThread isMainThread]);
-    [[NSNotificationCenter defaultCenter] postNotificationName:kEarthquakesErrorNotificationName object:self userInfo:@{kEarthquakesMessageErrorKey: parseError}];
+    [[NSNotificationCenter defaultCenter] postNotificationName:APLParseOperation.EarthquakesErrorNotificationName
+                                                        object:self
+                                                      userInfo:@{APLParseOperation.EarthquakesMessageErrorKey: parseError}];
 }
 
 /**
@@ -267,10 +287,9 @@ static NSString * const kGeoRSSPointElementName = @"georss:point";
  */
 - (void)parser:(NSXMLParser *)parser parseErrorOccurred:(NSError *)parseError {
      
-    if ([parseError code] != NSXMLParserDelegateAbortedParseError && !_didAbortParsing) {
+    if (parseError.code != NSXMLParserDelegateAbortedParseError && !self.didAbortParsing) {
         [self performSelectorOnMainThread:@selector(handleEarthquakesError:) withObject:parseError waitUntilDone:NO];
     }
 }
-
 
 @end
