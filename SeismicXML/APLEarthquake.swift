@@ -23,7 +23,7 @@ class Earthquake: NSObject {
     // Name of the location of the earthquake.
     var location: String = ""
     // Date and time at which the earthquake occurred.
-    var date: NSDate!
+    var date: Date!
     // Latitude and longitude of the earthquake.
     var latitude: Double = 0.0
     var longitude: Double = 0.0

@@ -39,30 +39,30 @@ class ViewController: UITableViewController {
         self.earthQuakeSource.addObserver(self,  forKeyPath: "earthquakes", options: [], context: nil)
         
         // listen for errors reported by our data source using KVO, so we can report it in our own way
-        self.earthQuakeSource.addObserver(self, forKeyPath: "error", options: .New, context: nil)
+        self.earthQuakeSource.addObserver(self, forKeyPath: "error", options: .new, context: nil)
         
         // Our NSNotification callback when the user changes the locale (region format) in Settings, so we are notified here to
         // update the date format in the table view cells
         //
         localChangedObserver =
-            NSNotificationCenter.defaultCenter().addObserverForName(NSCurrentLocaleDidChangeNotification,
+            NotificationCenter.default.addObserver(forName: NSLocale.currentLocaleDidChangeNotification,
                 object: nil,
                 queue: nil) {notification in
                     self.tableView.reloadData()
         }
     }
     
-    override func viewDidAppear(animated: Bool) {
+    override func viewDidAppear(_ animated: Bool) {
         
         super.viewDidAppear(animated)
         
-        UIApplication.sharedApplication().networkActivityIndicatorVisible = false
+        UIApplication.shared.isNetworkActivityIndicatorVisible = false
         self.earthQuakeSource.startEarthQuakeLookup()
     }
     
     deinit {
         
-        NSNotificationCenter.defaultCenter().removeObserver(self.localChangedObserver)
+        NotificationCenter.default.removeObserver(self.localChangedObserver)
     }
     
     
@@ -71,7 +71,7 @@ class ViewController: UITableViewController {
     /**
     * The number of rows is equal to the number of earthquakes in the array.
     */
-    override func tableView(tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
+    override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
         
         return self.earthQuakeSource.earthquakes.count
     }
@@ -79,10 +79,10 @@ class ViewController: UITableViewController {
     /**
      * Return the proper table view cell for each earthquake
      */
-    override func tableView(tableView: UITableView, cellForRowAtIndexPath indexPath: NSIndexPath) -> UITableViewCell {
+    override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         
         let kEarthquakeCellID = "EarthquakeCellID"
-        let cell = tableView.dequeueReusableCellWithIdentifier(kEarthquakeCellID) as! EarthquakeTableViewCell
+        let cell = tableView.dequeueReusableCell(withIdentifier: kEarthquakeCellID) as! EarthquakeTableViewCell
         
         // Get the specific earthquake for this row.
         let earthquake = self.earthQuakeSource.earthquakes[indexPath.row]
@@ -95,7 +95,7 @@ class ViewController: UITableViewController {
     /**
      * When the user taps a row in the table, display the USGS web page that displays details of the earthquake they selected.
      */
-    override func tableView(tableView: UITableView, didSelectRowAtIndexPath indexPath: NSIndexPath) {
+    override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         
         // open the earthquake info in Maps, note this will not work in the simulator
         let selectedIndexPath = self.tableView.indexPathForSelectedRow!
@@ -103,42 +103,40 @@ class ViewController: UITableViewController {
         
         // create a map region pointing to the earthquake location
         let location = CLLocationCoordinate2D(latitude: earthquake.latitude, longitude: earthquake.longitude)
-        let locationValue = NSValue(MKCoordinate: location)
         
         let span = MKCoordinateSpan(latitudeDelta: 50, longitudeDelta: 50)
-        let spanValue = NSValue(MKCoordinateSpan: span)
         
-        let launchOptions: [String: AnyObject] = [MKLaunchOptionsMapTypeKey : MKMapType.Standard.rawValue,
-            MKLaunchOptionsMapCenterKey : locationValue,
-            MKLaunchOptionsMapSpanKey : spanValue,
+        let launchOptions: [String: Any] = [MKLaunchOptionsMapTypeKey : MKMapType.standard.rawValue,
+            MKLaunchOptionsMapCenterKey : location,
+            MKLaunchOptionsMapSpanKey : span,
             MKLaunchOptionsShowsTrafficKey : false,
-            MKLaunchOptionsDirectionsModeDriving : false ]
+            MKLaunchOptionsDirectionsModeDriving : false]
         
         // make sure the map item has a pin placed on it with the title as the earthquake location
         let placemark = MKPlacemark(coordinate: location,
             addressDictionary: nil)
         let mapItem = MKMapItem(placemark: placemark)
         mapItem.name = earthquake.location
-        mapItem.openInMapsWithLaunchOptions(launchOptions)
+        mapItem.openInMaps(launchOptions: launchOptions)
         
-        self.tableView.deselectRowAtIndexPath(indexPath, animated: true)
+        self.tableView.deselectRow(at: indexPath, animated: true)
     }
     
-    override func observeValueForKeyPath(keyPath: String?, ofObject object: AnyObject?, change: [String : AnyObject]?, context: UnsafeMutablePointer<Void>) {
+    override func observeValue(forKeyPath keyPath: String?, of object: Any?, change: [NSKeyValueChangeKey : Any]?, context: UnsafeMutableRawPointer?) {
         let earthQuakeSource = object as! APLEarthQuakeSource
         
         switch keyPath {
         case "earthquakes"?:
-            dispatch_async(dispatch_get_main_queue()) {
+            DispatchQueue.main.async {
                 
-                UIApplication.sharedApplication().networkActivityIndicatorVisible = false
+                UIApplication.shared.isNetworkActivityIndicatorVisible = false
                 self.tableView.reloadData()
             }
         case "error"?:
             /* Handle errors in the download by showing an alert to the user. This is a very simple way of handling the error, partly because this application does not have any offline functionality for the user. Most real applications should handle the error in a less obtrusive way and provide offline functionality to the user.
             */
-            dispatch_async(dispatch_get_main_queue()) {
-                UIApplication.sharedApplication().networkActivityIndicatorVisible = false
+            DispatchQueue.main.async {
+                UIApplication.shared.isNetworkActivityIndicatorVisible = false
                 
                 let error = earthQuakeSource.error
                 
@@ -147,15 +145,15 @@ class ViewController: UITableViewController {
                 let okTitle = NSLocalizedString("OK", comment: "OK Title for alert displayed when download or parse error occurs.")
                 
                 if #available(iOS 8.0, *) {
-                    let alert = UIAlertController(title: alertTitle, message: errorMessage, preferredStyle: .Alert)
+                    let alert = UIAlertController(title: alertTitle, message: errorMessage, preferredStyle: .alert)
                     
-                    let action = UIAlertAction(title: okTitle, style: .Default) {act in
+                    let action = UIAlertAction(title: okTitle, style: .default) {act in
                         //..
                     }
                     alert.addAction(action)
                     
                     if self.presentedViewController == nil {
-                        self.presentViewController(alert, animated: true) {
+                        self.present(alert, animated: true) {
                             //..
                         }
                     }
@@ -166,7 +164,7 @@ class ViewController: UITableViewController {
                 }
             }
         default:
-            super.observeValueForKeyPath(keyPath, ofObject: object, change: change, context: context)
+            super.observeValue(forKeyPath: keyPath, of: object, change: change, context: context)
         }
     }
     
@@ -175,7 +173,7 @@ class ViewController: UITableViewController {
 extension ViewController: UIAlertViewDelegate {
     
     //### Handle OK here in iOS 7.x
-    func alertView(alertView: UIAlertView, clickedButtonAtIndex buttonIndex: Int) {
+    func alertView(_ alertView: UIAlertView, clickedButtonAt buttonIndex: Int) {
         //..
     }
 }

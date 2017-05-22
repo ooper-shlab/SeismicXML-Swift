@@ -18,21 +18,21 @@ import UIKit
 
 
 @objc(APLParseOperation)
-class ParseOperation: NSOperation, NSXMLParserDelegate {
+class ParseOperation: Operation, XMLParserDelegate {
     
-    let earthquakeData: NSData
+    let earthquakeData: Data
     
-    static let AddEarthQuakesNotificationName = "AddEarthquakesNotif"       // NSNotification name for sending earthquake data back to the app delegate
+    static let AddEarthQuakesNotificationName =  Notification.Name("AddEarthquakesNotif")       // NSNotification name for sending earthquake data back to the app delegate
     static let EarthquakeResultsKey = "EarthquakeResultsKey"                 // NSNotification userInfo key for obtaining the earthquake data
     
-    static let EarthquakesErrorNotificationName = "EarthquakeErrorNotif"     // NSNotification name for reporting errors
+    static let EarthquakesErrorNotificationName = Notification.Name("EarthquakeErrorNotif")     // NSNotification name for reporting errors
     static let EarthquakesMessageErrorKey = "EarthquakesMsgErrorKey"           // NSNotification userInfo key for obtaining the error message
     
     private var currentEarthquakeObject: Earthquake!
     private var currentParseBatch: [Earthquake] = []
     private var currentParsedCharacterData: String = ""
     
-    private let dateFormatter: NSDateFormatter
+    private let dateFormatter: DateFormatter
     
     private var accumulatingParsedCharacterData: Bool = false
     private var didAbortParsing: Bool = false
@@ -53,13 +53,13 @@ class ParseOperation: NSOperation, NSXMLParserDelegate {
         fatalError("Invalid use of init; use initWithData to create APLParseOperation")
     }
     
-    init(data parseData: NSData) {
+    init(data parseData: Data) {
         
-        earthquakeData = parseData.copy() as! NSData
+        earthquakeData = parseData
         
-        dateFormatter = NSDateFormatter()
-        dateFormatter.timeZone = NSTimeZone(forSecondsFromGMT: 0)
-        dateFormatter.locale = NSLocale(localeIdentifier: "en_US_POSIX")
+        dateFormatter = DateFormatter()
+        dateFormatter.timeZone = TimeZone(secondsFromGMT: 0)
+        dateFormatter.locale = Locale(identifier: "en_US_POSIX")
         dateFormatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'"
         
         // 2015-09-24T16:01:00.283Z
@@ -68,10 +68,10 @@ class ParseOperation: NSOperation, NSXMLParserDelegate {
     }
     
     
-    private func addEarthquakesToList(earthquakes: [Earthquake]) {
+    private func addEarthquakesToList(_ earthquakes: [Earthquake]) {
         
-        assert(NSThread.isMainThread())
-        NSNotificationCenter.defaultCenter().postNotificationName(ParseOperation.AddEarthQuakesNotificationName,
+        assert(Thread.isMainThread)
+        NotificationCenter.default.post(name: ParseOperation.AddEarthQuakesNotificationName,
             object: self,
             userInfo: [ParseOperation.EarthquakeResultsKey: earthquakes])
     }
@@ -83,7 +83,7 @@ class ParseOperation: NSOperation, NSXMLParserDelegate {
         /*
         It's also possible to have NSXMLParser download the data, by passing it a URL, but this is not desirable because it gives less control over the network, particularly in responding to connection errors.
         */
-        let parser = NSXMLParser(data: self.earthquakeData)
+        let parser = XMLParser(data: self.earthquakeData)
         parser.delegate = self
         parser.parse()
         
@@ -91,7 +91,7 @@ class ParseOperation: NSOperation, NSXMLParserDelegate {
         Depending on the total number of earthquakes parsed, the last batch might not have been a "full" batch, and thus not been part of the regular batch transfer. So, we check the count of the array and, if necessary, send it to the main thread.
         */
         if !self.currentParseBatch.isEmpty {
-            dispatch_async(dispatch_get_main_queue()) {
+            DispatchQueue.main.async {
                 self.addEarthquakesToList(self.currentParseBatch)
             }
         }
@@ -128,7 +128,7 @@ class ParseOperation: NSOperation, NSXMLParserDelegate {
     
     //MARK: - NSXMLParser delegate methods
     
-    func parser(parser: NSXMLParser, didStartElement elementName: String, namespaceURI: String?, qualifiedName qName: String?, attributes attributeDict: [String: String]) {
+    func parser(_ parser: XMLParser, didStartElement elementName: String, namespaceURI: String?, qualifiedName qName: String?, attributes attributeDict: [String: String]) {
         
         // add the element to the state stack
         self.elementStack.append(elementName)
@@ -168,7 +168,7 @@ class ParseOperation: NSOperation, NSXMLParserDelegate {
         }
     }
     
-    func parser(parser: NSXMLParser, didEndElement elementName: String, namespaceURI: String?, qualifiedName qName: String?) {
+    func parser(_ parser: XMLParser, didEndElement elementName: String, namespaceURI: String?, qualifiedName qName: String?) {
         
             // check if the end element matches what's last on the element stack
         if elementName == self.elementStack.last {
@@ -189,7 +189,7 @@ class ParseOperation: NSOperation, NSXMLParserDelegate {
             parsedEarthquakesCounter += 1
 
             if self.currentParseBatch.count >= kSizeOfEarthquakeBatch {
-                dispatch_sync(dispatch_get_main_queue()) {
+                DispatchQueue.main.sync {
                     self.addEarthquakesToList(self.currentParseBatch)
                 }
 
@@ -205,12 +205,12 @@ class ParseOperation: NSOperation, NSXMLParserDelegate {
                      */
         
                     // search the entire string for "of ", and extract that last part of that string
-                let searchedRange = NSMakeRange(0, self.currentParsedCharacterData.utf16.count)
+                let searchedRange = NSRange(0..<self.currentParsedCharacterData.utf16.count)
                 let regExpression = try! NSRegularExpression(pattern: "of ", options: [])
-                if let match = regExpression.firstMatchInString(self.currentParsedCharacterData, options: [], range: searchedRange) {
+                if let match = regExpression.firstMatch(in: self.currentParsedCharacterData, options: [], range: searchedRange) {
                 let start = match.range.location + match.range.length
-                    let extractRange = NSMakeRange(start, self.currentParsedCharacterData.utf16.count - start)
-                    self.currentEarthquakeObject.location = (self.currentParsedCharacterData as NSString).substringWithRange(extractRange)
+                    let extractRange = NSRange(start..<self.currentParsedCharacterData.utf16.count)
+                    self.currentEarthquakeObject.location = (self.currentParsedCharacterData as NSString).substring(with: extractRange)
                 } else {print("missing 'of ' in \(kDescriptionElementContent) element")}
 
                 seekDescription = false
@@ -218,7 +218,7 @@ class ParseOperation: NSOperation, NSXMLParserDelegate {
         case kValueKey:
             if self.seekTime {
                     // end earthquake date/time
-                self.currentEarthquakeObject.date = self.dateFormatter.dateFromString(self.currentParsedCharacterData)
+                self.currentEarthquakeObject.date = self.dateFormatter.date(from: self.currentParsedCharacterData)
                 seekTime = false
             } else if self.seekLatitude {
                     // end earthquake latitude
@@ -244,7 +244,7 @@ class ParseOperation: NSOperation, NSXMLParserDelegate {
     /**
     This method is called by the parser when it find parsed character data ("PCDATA") in an element. The parser is not guaranteed to deliver all of the parsed character data for an element in a single invocation, so it is necessary to accumulate character data until the end of the element is reached.
     */
-    func parser(parser: NSXMLParser, foundCharacters string: String) {
+    func parser(_ parser: XMLParser, foundCharacters string: String) {
         
         if accumulatingParsedCharacterData {
             // If the current element is one whose content we care about, append 'string'
@@ -257,20 +257,20 @@ class ParseOperation: NSOperation, NSXMLParserDelegate {
     /**
     An error occurred while parsing the earthquake data: post the error as an NSNotification to our app delegate.
     */
-    private func handleEarthquakesError(parseError: NSError) {
+    private func handleEarthquakesError(_ parseError: Error) {
         
-        assert(NSThread.isMainThread())
-        NSNotificationCenter.defaultCenter().postNotificationName(ParseOperation.EarthquakesErrorNotificationName, object: self, userInfo: [ParseOperation.EarthquakesMessageErrorKey: parseError])
+        assert(Thread.isMainThread)
+        NotificationCenter.default.post(name: ParseOperation.EarthquakesErrorNotificationName, object: self, userInfo: [ParseOperation.EarthquakesMessageErrorKey: parseError])
     }
     
     /**
     An error occurred while parsing the earthquake data, pass the error to the main thread for handling.
     (Note: don't report an error if we aborted the parse due to a max limit of earthquakes.)
     */
-    func parser(parser: NSXMLParser, parseErrorOccurred parseError: NSError) {
+    func parser(_ parser: XMLParser, parseErrorOccurred parseError: Error) {
         
-        if parseError.code != NSXMLParserError.DelegateAbortedParseError.rawValue && !didAbortParsing {
-            dispatch_async(dispatch_get_main_queue()) {
+        if (parseError as NSError).code != XMLParser.ErrorCode.delegateAbortedParseError.rawValue && !didAbortParsing {
+            DispatchQueue.main.async {
                 self.handleEarthquakesError(parseError)
             }
         }

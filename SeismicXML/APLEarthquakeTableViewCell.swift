@@ -26,17 +26,17 @@ class EarthquakeTableViewCell: UITableViewCell {
     @IBOutlet weak var magnitudeImage: UIImageView!
     
     
-    func configureWithEarthquake(earthquake: Earthquake) {
+    func configureWithEarthquake(_ earthquake: Earthquake) {
         
         self.locationLabel.text = earthquake.location
-        self.dateLabel.text = self.dateFormatter.stringFromDate(earthquake.date)
+        self.dateLabel.text = self.dateFormatter.string(from: earthquake.date as Date)
         self.magnitudeLabel.text = String(format: "%.1f", Double(earthquake.magnitude))
         self.magnitudeImage.image = self.imageForMagnitude(earthquake.magnitude)
     }
     
     
     // Based on the magnitude of the earthquake, return an image indicating its seismic strength.
-    private func imageForMagnitude(magnitude: Float) -> UIImage? {
+    private func imageForMagnitude(_ magnitude: Float) -> UIImage? {
         
         if magnitude >= 5.0 {
             return UIImage(named: "5.0.png")
@@ -55,12 +55,12 @@ class EarthquakeTableViewCell: UITableViewCell {
     
     
     // On-demand initializer for read-only property.
-    private lazy var dateFormatter: NSDateFormatter = {
+    private lazy var dateFormatter: DateFormatter = {
         
-        let dateFormatter = NSDateFormatter()
-        dateFormatter.timeZone = NSTimeZone.localTimeZone()
-        dateFormatter.dateStyle = .MediumStyle
-        dateFormatter.timeStyle = .MediumStyle
+        let dateFormatter = DateFormatter()
+        dateFormatter.timeZone = TimeZone.autoupdatingCurrent
+        dateFormatter.dateStyle = .medium
+        dateFormatter.timeStyle = .medium
         return dateFormatter
     }()
     
