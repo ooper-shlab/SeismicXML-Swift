@@ -18,8 +18,8 @@ import Foundation
 @objc(APLEarthQuakeSource)
 class APLEarthQuakeSource: NSObject {
     
-    private(set) dynamic var earthquakes: [Earthquake] = []
-    private(set) dynamic var error: Error?
+    @objc private(set) dynamic var earthquakes: [Earthquake] = []
+    @objc private(set) dynamic var error: Error?
     
     private let feedURLString = "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_week.quakeml"
     
