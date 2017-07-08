@@ -29,7 +29,7 @@ class EarthquakeTableViewCell: UITableViewCell {
     func configureWithEarthquake(_ earthquake: Earthquake) {
         
         self.locationLabel.text = earthquake.location
-        self.dateLabel.text = self.dateFormatter.string(from: earthquake.date as Date)
+        self.dateLabel.text = self.dateFormatter.string(from: earthquake.date)
         self.magnitudeLabel.text = String(format: "%.1f", Double(earthquake.magnitude))
         self.magnitudeImage.image = self.imageForMagnitude(earthquake.magnitude)
     }
