@@ -208,9 +208,8 @@ class ParseOperation: Operation, XMLParserDelegate {
                 let searchedRange = NSRange(0..<self.currentParsedCharacterData.utf16.count)
                 let regExpression = try! NSRegularExpression(pattern: "of ", options: [])
                 if let match = regExpression.firstMatch(in: self.currentParsedCharacterData, options: [], range: searchedRange) {
-                let start = match.range.location + match.range.length
-                    let extractRange = NSRange(start..<self.currentParsedCharacterData.utf16.count)
-                    self.currentEarthquakeObject.location = (self.currentParsedCharacterData as NSString).substring(with: extractRange)
+                    let extractRange = Range(match.range, in: self.currentParsedCharacterData)
+                    self.currentEarthquakeObject.location = String(self.currentParsedCharacterData[extractRange!])
                 } else {print("missing 'of ' in \(kDescriptionElementContent) element")}
 
                 seekDescription = false

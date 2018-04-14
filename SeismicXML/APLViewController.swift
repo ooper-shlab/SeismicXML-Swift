@@ -144,23 +144,17 @@ class ViewController: UITableViewController {
                 let alertTitle = NSLocalizedString("Error", comment: "Title for alert displayed when download or parse error occurs.")
                 let okTitle = NSLocalizedString("OK", comment: "OK Title for alert displayed when download or parse error occurs.")
                 
-                if #available(iOS 8.0, *) {
-                    let alert = UIAlertController(title: alertTitle, message: errorMessage, preferredStyle: .alert)
-                    
-                    let action = UIAlertAction(title: okTitle, style: .default) {act in
+                let alert = UIAlertController(title: alertTitle, message: errorMessage, preferredStyle: .alert)
+                
+                let action = UIAlertAction(title: okTitle, style: .default) {act in
+                    //..
+                }
+                alert.addAction(action)
+                
+                if self.presentedViewController == nil {
+                    self.present(alert, animated: true) {
                         //..
                     }
-                    alert.addAction(action)
-                    
-                    if self.presentedViewController == nil {
-                        self.present(alert, animated: true) {
-                            //..
-                        }
-                    }
-                } else {
-                    let alertView = UIAlertView(title: alertTitle, message: errorMessage, delegate: self, cancelButtonTitle: okTitle)
-                    alertView.show()
-                    //..
                 }
             }
         default:
